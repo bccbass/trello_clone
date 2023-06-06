@@ -1,8 +1,10 @@
 from datetime import date 
 
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
 from flask_marshmallow import Marshmallow
+from flask_bcrypt import Bcrypt
 
 # install flask-marshmallow and marshmallow-sqlalchemy
 
@@ -28,6 +30,8 @@ db = SQLAlchemy(app)
 # print(db.__dict__)
 # create instance of Marshmallow and pass App instance (flask)
 ma = Marshmallow(app)
+# create instance of Bcrypt and pass in app
+bcrypt = Bcrypt(app)
 
 
 # MODELS AREA
@@ -58,10 +62,14 @@ class CardSchema(ma.Schema):
 
 class UserSchema(ma.Schema):
     class Meta:
-        fields = ('name', 'email', 'is_admin')
+        fields = ('name', 'email', 'password', 'is_admin')
 
 
 # ROUTES AREA
+@app.route('/')
+def index():
+    return '<p> Hello world!</p>'
+
 @app.route('/cards') 
 def all_cards():
     # select * from cards
@@ -71,6 +79,30 @@ def all_cards():
     cards = db.session.scalars(stmt).all()  
     # Marshmallow statement to convert to python data type. Creates Card schema call dump on schema instance with passed in cards obj
     return CardSchema(many=True).dump(cards)
+
+@app.route('/register', methods=['POST'])
+def register():
+    try:
+        # appending .json to request allows access to parsed json body from post request
+        # print(request.json)
+        # Parse, sanitize, and validate incoming json
+        # via the schema
+        user_info = UserSchema().load(request.json)
+        # create a new User model instance with schema data user_info
+        user = User(
+            email=user_info['email'],
+            password=bcrypt.generate_password_hash(user_info['password']).decode('utf-8'),
+            name = user_info['name']
+        )
+        # add to session
+        db.session.add(user)
+        # commit to session
+        db.session.commit()
+        # return new user, excluding password
+        return UserSchema(exclude=['password']).dump(user), 201 
+    except IntegrityError:
+        return {'error': 'email address already in use'}, 409
+    # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
 
 # CLI COMMAND AREA
 @app.cli.command('one_card') 
@@ -115,13 +147,15 @@ def seed_db():
         User(
         name='Guy Luxe',
         email='admin@example.com',
-        password='spiny',
+        # generate pw hash then decode to base64
+        password=bcrypt.generate_password_hash('spiny').decode('utf-8'),
         is_admin=True
         ),
         User(
         name='John Clease',
         email='spam@example.com',
-        password='passwordspam'
+        password=bcrypt.generate_password_hash('tisbutascratch').decode('utf-8'),
+
         )
     ]
 
@@ -157,10 +191,7 @@ def seed_db():
     db.session.commit()
     print('models seeded')
 
-@app.route('/')
 
-def index():
-    return '<p> Hello world!</p>'
 
 if __name__ == '__main__':
     app.run(port=8000, debug=True)
