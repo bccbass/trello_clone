@@ -1,10 +1,13 @@
 from datetime import date 
-import json
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+
+# install flask-marshmallow and marshmallow-sqlalchemy
 
 app = Flask(__name__)
+
 
 # pip install: flask, flask-sqlalchemy, sqlalchemy, psycopg2-binary
 
@@ -23,7 +26,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameg
 # create an instance of SQLAlchemy and pass in Flask app instance as argument to link the two together and open connectionn to DB.
 db = SQLAlchemy(app)
 # print(db.__dict__)
+# create instance of Marshmallow and pass App instance (flask)
+ma = Marshmallow(app)
 
+
+# MODELS AREA
 class Card(db.Model):
     __tablename__ = 'cards'
     
@@ -33,16 +40,39 @@ class Card(db.Model):
     status = db.Column(db.String(30))
     date_created = db.Column(db.Date())
 
-# CLI COMMAND AREA
+class User(db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    email = db.Column(db.String, nullable=False, unique=True)
+    password = db.Column(db.String, nullable=False)
+    # create user role:
+    is_admin = db.Column(db.Boolean, default=False)
+
+
+# Marshmallow shema
+class CardSchema(ma.Schema):
+    class Meta:
+        fields = ('id', 'title', 'description', 'status', 'date_created')
+
+class UserSchema(ma.Schema):
+    class Meta:
+        fields = ('name', 'email', 'is_admin')
+
+
+# ROUTES AREA
 @app.route('/cards') 
 def all_cards():
     # select * from cards
     # ordered by desc id
     stmt = db.select(Card).order_by(Card.status.desc())
+    # scalars executes statement. all converts scalar object to list
     cards = db.session.scalars(stmt).all()  
-    return json.dumps(cards)
+    # Marshmallow statement to convert to python data type. Creates Card schema call dump on schema instance with passed in cards obj
+    return CardSchema(many=True).dump(cards)
 
-
+# CLI COMMAND AREA
 @app.cli.command('one_card') 
 def one_card():
     # select * from cards
@@ -80,6 +110,21 @@ def create():
     
 @app.cli.command('seed')
 def seed_db():
+
+    users = [
+        User(
+        name='Guy Luxe',
+        email='admin@example.com',
+        password='spiny',
+        is_admin=True
+        ),
+        User(
+        name='John Clease',
+        email='spam@example.com',
+        password='passwordspam'
+        )
+    ]
+
     # Create an instance of the card model in memory
     cards = [
         Card(
@@ -103,9 +148,11 @@ def seed_db():
     ]
     # Truncate the Card table
     db.session.query(Card).delete()
+    db.session.query(User).delete()
 
     # Add card to the session (transaction)
     db.session.add_all(cards)
+    db.session.add_all(users)
     # commit the transaction to the database
     db.session.commit()
     print('models seeded')
@@ -116,4 +163,4 @@ def index():
     return '<p> Hello world!</p>'
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=8000, debug=True)
