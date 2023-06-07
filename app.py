@@ -1,11 +1,11 @@
-from datetime import date 
+from datetime import date, timedelta
 
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 
 
@@ -83,7 +83,8 @@ def login():
         # stmt = db.select(User).where(User.email==request.json['email'])
         user = db.session.scalar(stmt)
         if user and bcrypt.check_password_hash(user.password, request.json['password']):
-            return UserSchema(exclude=['password']).dump(user)
+            token = create_access_token(identity=user.email, expires_delta=timedelta(days=1))
+            return {'token': token, 'user': UserSchema(exclude=['password']).dump(user)}
         else:
             return {'error': 'Invalid password or email address provided'}, 401
     except KeyError:
@@ -91,7 +92,17 @@ def login():
 
 
 @app.route('/cards') 
+# verifies signature on the token
+@jwt_required()
 def all_cards():
+    # retrieve users email from bearer token
+    user_email = get_jwt_identity()
+    # query db for user
+    stmt = db.select(User).filter_by(email=user_email)
+    user = db.session.scalar(stmt)
+    if not user.is_admin:
+        return {'error': 'You must be an admin'}, 401
+
     # select * from cards
     # ordered by desc id
     stmt = db.select(Card).order_by(Card.status.desc())
