@@ -5,6 +5,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager, create_access_token
+
+
 
 # install flask-marshmallow and marshmallow-sqlalchemy
 
@@ -24,7 +27,8 @@ app = Flask(__name__)
 # Setting database connection string - this is a universal format URI for connecting to any database and must be in this configuration.
 # Databse+adapter://<user>:<password>@<host name>:port/<database>
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameggs123@localhost:5432/trello'
-
+# JWT secret key
+app.config['JWT_SECRET_KEY'] = 'trello_secret_key'
 # create an instance of SQLAlchemy and pass in Flask app instance as argument to link the two together and open connectionn to DB.
 db = SQLAlchemy(app)
 # print(db.__dict__)
@@ -32,6 +36,8 @@ db = SQLAlchemy(app)
 ma = Marshmallow(app)
 # create instance of Bcrypt and pass in app
 bcrypt = Bcrypt(app)
+# create instance of JWT manageer
+jwt = JWTManager(app)
 
 
 # MODELS AREA
@@ -69,6 +75,20 @@ class UserSchema(ma.Schema):
 @app.route('/')
 def index():
     return '<p> Hello world!</p>'
+
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        stmt = db.select(User).filter_by(email=request.json['email'])
+        # stmt = db.select(User).where(User.email==request.json['email'])
+        user = db.session.scalar(stmt)
+        if user and bcrypt.check_password_hash(user.password, request.json['password']):
+            return UserSchema(exclude=['password']).dump(user)
+        else:
+            return {'error': 'Invalid password or email address provided'}, 401
+    except KeyError:
+        return {'error': 'Email and password are required'}, 401
+
 
 @app.route('/cards') 
 def all_cards():
