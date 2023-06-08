@@ -2,19 +2,22 @@ from datetime import date, timedelta
 from os import environ
 
 from flask import Flask, request, abort
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
-from flask_marshmallow import Marshmallow
-from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from dotenv import load_dotenv
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+
+
+
+from init import db, ma, bcrypt, jwt
+from models.user import User, UserSchema
+from models.card import Card, CardSchema
 
 load_dotenv()
 # print(environ)
 
 # install flask-marshmallow and marshmallow-sqlalchemy
 
-app = Flask(__name__)
+
 
 
 # pip install: flask, flask-sqlalchemy, sqlalchemy, psycopg2-binary
@@ -30,19 +33,18 @@ app = Flask(__name__)
 # Setting database connection string - this is a universal format URI for connecting to any database and must be in this configuration.
 # Databse+adapter://<user>:<password>@<host name>:port/<database>
 
+# Create instance of flask app
+app = Flask(__name__)
 # After installing python-dotenv and importing environ from os
 app.config['SQLALCHEMY_DATABASE_URI'] = environ.get('DB_URI')
 # JWT secret key
 app.config['JWT_SECRET_KEY'] = environ.get('JWT_KEY')
-# create an instance of SQLAlchemy and pass in Flask app instance as argument to link the two together and open connectionn to DB.
-db = SQLAlchemy(app)
-# print(db.__dict__)
-# create instance of Marshmallow and pass App instance (flask)
-ma = Marshmallow(app)
-# create instance of Bcrypt and pass in app
-bcrypt = Bcrypt(app)
-# create instance of JWT manageer
-jwt = JWTManager(app)
+
+# passes each object the 'app' instance
+db.init_app(app)
+ma.init_app(app)
+jwt.init_app(app)
+bcrypt.init_app(app)
 
 def admin_required():
     # function assumes jwt is valid
@@ -61,35 +63,9 @@ def unauthorized(err):
     return {'error': 'You must be an admin'}, 401
 
 
-# MODELS AREA
-class Card(db.Model):
-    __tablename__ = 'cards'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    description = db.Column(db.Text())
-    status = db.Column(db.String(30))
-    date_created = db.Column(db.Date())
-
-class User(db.Model):
-    __tablename__ = 'users'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    email = db.Column(db.String, nullable=False, unique=True)
-    password = db.Column(db.String, nullable=False)
-    # create user role:
-    is_admin = db.Column(db.Boolean, default=False)
 
 
-# Marshmallow shema
-class CardSchema(ma.Schema):
-    class Meta:
-        fields = ('id', 'title', 'description', 'status', 'date_created')
 
-class UserSchema(ma.Schema):
-    class Meta:
-        fields = ('name', 'email', 'password', 'is_admin')
 
 
 # ROUTES AREA
