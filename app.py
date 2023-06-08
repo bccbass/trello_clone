@@ -1,13 +1,16 @@
 from datetime import date, timedelta
+from os import environ
 
-from flask import Flask, request
+from flask import Flask, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from dotenv import load_dotenv
 
-
+load_dotenv()
+# print(environ)
 
 # install flask-marshmallow and marshmallow-sqlalchemy
 
@@ -26,9 +29,11 @@ app = Flask(__name__)
 # Set database connection path giving database type and adapter, then path and user/password local host port
 # Setting database connection string - this is a universal format URI for connecting to any database and must be in this configuration.
 # Databse+adapter://<user>:<password>@<host name>:port/<database>
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg2://trello_dev:spameggs123@localhost:5432/trello'
+
+# After installing python-dotenv and importing environ from os
+app.config['SQLALCHEMY_DATABASE_URI'] = environ.get('DB_URI')
 # JWT secret key
-app.config['JWT_SECRET_KEY'] = 'trello_secret_key'
+app.config['JWT_SECRET_KEY'] = environ.get('JWT_KEY')
 # create an instance of SQLAlchemy and pass in Flask app instance as argument to link the two together and open connectionn to DB.
 db = SQLAlchemy(app)
 # print(db.__dict__)
@@ -38,6 +43,22 @@ ma = Marshmallow(app)
 bcrypt = Bcrypt(app)
 # create instance of JWT manageer
 jwt = JWTManager(app)
+
+def admin_required():
+    # function assumes jwt is valid
+    # retrieve users email from bearer token
+    user_email = get_jwt_identity()
+    # query db for user
+    stmt = db.select(User).filter_by(email=user_email)
+    user = db.session.scalar(stmt)
+    if not (user and user.is_admin):
+        # in order exit from all local scope use abort()
+        abort(401) 
+
+    # error handler to to return json message:
+@app.errorhandler(401)
+def unauthorized(err):
+    return {'error': 'You must be an admin'}, 401
 
 
 # MODELS AREA
@@ -91,18 +112,12 @@ def login():
         return {'error': 'Email and password are required'}, 401
 
 
-@app.route('/cards') 
+@app.route('/cards')
 # verifies signature on the token
 @jwt_required()
 def all_cards():
-    # retrieve users email from bearer token
-    user_email = get_jwt_identity()
-    # query db for user
-    stmt = db.select(User).filter_by(email=user_email)
-    user = db.session.scalar(stmt)
-    if not user.is_admin:
-        return {'error': 'You must be an admin'}, 401
 
+    admin_required()
     # select * from cards
     # ordered by desc id
     stmt = db.select(Card).order_by(Card.status.desc())
