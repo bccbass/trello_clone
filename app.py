@@ -11,6 +11,8 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from init import db, ma, bcrypt, jwt
 from models.user import User, UserSchema
 from models.card import Card, CardSchema
+from blueprints.cli_bp import db_commands
+
 
 load_dotenv()
 # print(environ)
@@ -39,6 +41,9 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = environ.get('DB_URI')
 # JWT secret key
 app.config['JWT_SECRET_KEY'] = environ.get('JWT_KEY')
+
+
+app.register_blueprint(db_commands)
 
 # passes each object the 'app' instance
 db.init_app(app)
@@ -126,92 +131,7 @@ def register():
         return {'error': 'email address already in use'}, 409
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
 
-# CLI COMMAND AREA
-@app.cli.command('one_card') 
-def one_card():
-    # select * from cards
-    # you can limit the stmt results using .limit(number to see)
-    # this returns a list of the number of cards you want to see
-    # This is best practice because it will stop search when first result is found, and cease searching
-    # add db.or_ for or queries
-    # stmt = db.select(Card).where(db.or_(Card.status != 'Done', Card.id > 2))
-    # 'and' is default. See above for or statements
-    stmt = db.select(Card).where(Card.status != 'Done', Card.id > 2).order_by(Card.id.desc())
-    cards = db.session.scalars(stmt).all()
-    for card in cards:
-        print(card.__dict__)
 
-# @app.cli.command('one_card') 
-# def one_card():
-#     # select * from cards
-#     # you can limit the stmt results using .limit(number to see)
-#     # this returns a list of the number of cards you want to see
-#     # This is best practice because it will stop search when first result is found, and cease searching
-#     # add db.or_ for or queries
-#     # stmt = db.select(Card).where(db.or_(Card.status != 'Done', Card.id > 2))
-#     # 'and' is default. See above for or statements
-#     stmt = db.select(Card).where(Card.status != 'Done', Card.id > 2).order_by(Card.id.desc())
-#     cards = db.session.scalars(stmt).all()
-#     for card in cards:
-#         print(card.__dict__)
-
-
-@app.cli.command('create')
-def create():
-    db.drop_all()
-    db.create_all()
-    print('tables created successfully')
-    
-@app.cli.command('seed')
-def seed_db():
-
-    users = [
-        User(
-        name='Guy Luxe',
-        email='admin@example.com',
-        # generate pw hash then decode to base64
-        password=bcrypt.generate_password_hash('spiny').decode('utf-8'),
-        is_admin=True
-        ),
-        User(
-        name='John Clease',
-        email='spam@example.com',
-        password=bcrypt.generate_password_hash('tisbutascratch').decode('utf-8'),
-
-        )
-    ]
-
-    # Create an instance of the card model in memory
-    cards = [
-        Card(
-            title = 'Start the project',
-            description = 'Create an ERD',
-            status = 'Done',
-            date_created = date.today()
-        ),
-        Card(
-            title = 'ORM Queries',
-            description = 'Stage 2',
-            status = 'In progress',
-            date_created = date.today()
-        ),
-        Card(
-            title = 'Marshmallow',
-            description = 'Stage 3',
-            status = 'In progress',
-            date_created = date.today()
-        )
-    ]
-    # Truncate the Card table
-    db.session.query(Card).delete()
-    db.session.query(User).delete()
-
-    # Add card to the session (transaction)
-    db.session.add_all(cards)
-    db.session.add_all(users)
-    # commit the transaction to the database
-    db.session.commit()
-    print('models seeded')
 
 
 
