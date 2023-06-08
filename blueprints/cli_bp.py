@@ -7,7 +7,7 @@ from models.card import Card
 
 
 
-
+#  To run cli commands use flask db <action>
 
 db_commands = Blueprint('db', __name__)
 

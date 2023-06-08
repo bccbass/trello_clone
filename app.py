@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from os import environ
 
-from flask import Flask, request, abort
+from flask import Flask, request, abort, Blueprint
 from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -10,8 +10,9 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 
 from init import db, ma, bcrypt, jwt
 from models.user import User, UserSchema
-from models.card import Card, CardSchema
 from blueprints.cli_bp import db_commands
+from blueprints.auth_bp import auth_bp
+from blueprints.cards_bp import cards_bp
 
 
 load_dotenv()
@@ -44,6 +45,8 @@ app.config['JWT_SECRET_KEY'] = environ.get('JWT_KEY')
 
 
 app.register_blueprint(db_commands)
+app.register_blueprint(auth_bp)
+app.register_blueprint(cards_bp)
 
 # passes each object the 'app' instance
 db.init_app(app)
@@ -51,18 +54,9 @@ ma.init_app(app)
 jwt.init_app(app)
 bcrypt.init_app(app)
 
-def admin_required():
-    # function assumes jwt is valid
-    # retrieve users email from bearer token
-    user_email = get_jwt_identity()
-    # query db for user
-    stmt = db.select(User).filter_by(email=user_email)
-    user = db.session.scalar(stmt)
-    if not (user and user.is_admin):
-        # in order exit from all local scope use abort()
-        abort(401) 
 
-    # error handler to to return json message:
+
+    # error handler to to return json message (for admin_required function):
 @app.errorhandler(401)
 def unauthorized(err):
     return {'error': 'You must be an admin'}, 401
@@ -73,63 +67,11 @@ def unauthorized(err):
 
 
 
-# ROUTES AREA
-@app.route('/')
-def index():
-    return '<p> Hello world!</p>'
-
-@app.route('/login', methods=['POST'])
-def login():
-    try:
-        stmt = db.select(User).filter_by(email=request.json['email'])
-        # stmt = db.select(User).where(User.email==request.json['email'])
-        user = db.session.scalar(stmt)
-        if user and bcrypt.check_password_hash(user.password, request.json['password']):
-            token = create_access_token(identity=user.email, expires_delta=timedelta(days=1))
-            return {'token': token, 'user': UserSchema(exclude=['password']).dump(user)}
-        else:
-            return {'error': 'Invalid password or email address provided'}, 401
-    except KeyError:
-        return {'error': 'Email and password are required'}, 401
 
 
-@app.route('/cards')
-# verifies signature on the token
-@jwt_required()
-def all_cards():
 
-    admin_required()
-    # select * from cards
-    # ordered by desc id
-    stmt = db.select(Card).order_by(Card.status.desc())
-    # scalars executes statement. all converts scalar object to list
-    cards = db.session.scalars(stmt).all()  
-    # Marshmallow statement to convert to python data type. Creates Card schema call dump on schema instance with passed in cards obj
-    return CardSchema(many=True).dump(cards)
 
-@app.route('/register', methods=['POST'])
-def register():
-    try:
-        # appending .json to request allows access to parsed json body from post request
-        # print(request.json)
-        # Parse, sanitize, and validate incoming json
-        # via the schema
-        user_info = UserSchema().load(request.json)
-        # create a new User model instance with schema data user_info
-        user = User(
-            email=user_info['email'],
-            password=bcrypt.generate_password_hash(user_info['password']).decode('utf-8'),
-            name = user_info['name']
-        )
-        # add to session
-        db.session.add(user)
-        # commit to session
-        db.session.commit()
-        # return new user, excluding password
-        return UserSchema(exclude=['password']).dump(user), 201 
-    except IntegrityError:
-        return {'error': 'email address already in use'}, 409
-    # https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+
 
 
 
