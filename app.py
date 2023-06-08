@@ -1,10 +1,10 @@
 from datetime import date, timedelta
 from os import environ
 
-from flask import Flask, request, abort, Blueprint
-from sqlalchemy.exc import IntegrityError
+from flask import Flask
+# from sqlalchemy.exc import IntegrityError
 from dotenv import load_dotenv
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+# from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 
 
