@@ -76,6 +76,6 @@ def admin_or_owner_required(owner_id):
     # query db for user
     stmt = db.select(User).filter_by(email=user_email)
     user = db.session.scalar(stmt)
-    if not (user and user.is_admin or user_id == owner_id):
+    if not (user and (user.is_admin or user_id == owner_id)):
         # in order exit from all local scope use abort()
         abort(401) 

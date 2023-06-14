@@ -7,6 +7,7 @@ from models.user import User, UserSchema
 from blueprints.cli_bp import db_commands
 from blueprints.auth_bp import auth_bp
 from blueprints.cards_bp import cards_bp
+from blueprints.comments_bp import comments_bp
 
 
 # print(environ)
@@ -37,6 +38,7 @@ def create_app():
     app.register_blueprint(db_commands)
     app.register_blueprint(auth_bp)
     app.register_blueprint(cards_bp)
+    app.register_blueprint(comments_bp)
 
     # passes each object the 'app' instance
     db.init_app(app)
