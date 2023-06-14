@@ -4,6 +4,7 @@ from datetime import date
 from init import db, bcrypt
 from models.user import User
 from models.card import Card
+from models.comment import Comment
 
 
 
@@ -62,9 +63,11 @@ def seed_db():
         name='John Clease',
         email='spam@example.com',
         password=bcrypt.generate_password_hash('tisbutascratch').decode('utf-8'),
-
         )
     ]
+    db.session.query(User).delete()
+    db.session.add_all(users)
+    db.session.commit()
 
     # Create an instance of the card model in memory
     cards = [
@@ -72,28 +75,53 @@ def seed_db():
             title = 'Start the project',
             description = 'Create an ERD',
             status = 'Done',
-            date_created = date.today()
+            date_created = date.today(),
+            user = users[0]
         ),
         Card(
             title = 'ORM Queries',
             description = 'Stage 2',
             status = 'In progress',
-            date_created = date.today()
-        ),
+            date_created = date.today(),
+            user = users[0]        
+            ),
         Card(
             title = 'Marshmallow',
             description = 'Stage 3',
             status = 'In progress',
-            date_created = date.today()
+            date_created = date.today(),
+            user = users[0]
         )
     ]
-    # Truncate the Card table
-    db.session.query(Card).delete()
-    db.session.query(User).delete()
 
-    # Add card to the session (transaction)
+
+    db.session.query(Card).delete()
     db.session.add_all(cards)
-    db.session.add_all(users)
-    # commit the transaction to the database
     db.session.commit()
+
+    comments = [
+        Comment(
+            message = 'Comment 1',
+            date_created = date.today(),
+            user = users[0],
+            card = cards[1]
+        ),
+        Comment(
+            message = 'Comment 2',
+            date_created = date.today(),
+            user = users[1],
+            card = cards[1]
+        ),
+        Comment(
+            message = 'Comment 3',
+            date_created = date.today(),
+            user = users[0],
+            card = cards[0]
+        )
+    ]
+
+    db.session.query(Comment).delete()
+    db.session.add_all(comments)
+    db.session.commit()
+
     print('models seeded')
